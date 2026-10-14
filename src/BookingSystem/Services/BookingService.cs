@@ -15,8 +15,13 @@ public class BookingService(IBookingRepository repository)
 
     public IReadOnlyList<Booking> GetActiveBookings()
     {
-        // This method has not been completed.
-        return repository.GetAll();
+        
+        return repository.GetAll()
+            .Where(Booking => !Booking.IsCancelled)
+            .OrderBy(booking  => booking.Date)
+            .ThenBy(booking => booking.StartTime)
+            .ToList();
+        
     }
 
     public IReadOnlyList<Booking> Search(string searchTerm)
@@ -24,7 +29,7 @@ public class BookingService(IBookingRepository repository)
         return repository.GetAll()
             .Where(booking =>
                 !booking.IsCancelled &&
-                booking.CustomerName.Contains(searchTerm))
+                booking.CustomerName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
             .ToList();
     }
 
@@ -46,7 +51,15 @@ public class BookingService(IBookingRepository repository)
 
     public BookingResult Cancel(int bookingId)
     {
-        throw new NotImplementedException();
+        var booking = repository.GetAll().FirstOrDefault(b  => b.Id == bookingId);
+        if (booking == null)
+        {
+            return BookingResult.Failure("Booking not found.");
+        }
+        booking.IsCancelled = true;
+        repository.Save();
+        return BookingResult.Success("Booking cancelled successfully.");
+       
     }
 
     private BookingResult Validate(Booking booking)
@@ -61,7 +74,7 @@ public class BookingService(IBookingRepository repository)
             return BookingResult.Failure("The selected room does not exist.");
         }
 
-        if (booking.StartTime == booking.EndTime)
+        if (booking.StartTime >= booking.EndTime)
         {
             return BookingResult.Failure("The start time must be earlier than the end time.");
         }
@@ -80,8 +93,8 @@ public class BookingService(IBookingRepository repository)
             !existing.IsCancelled &&
             existing.Date == booking.Date &&
             existing.RoomName.Equals(booking.RoomName, StringComparison.OrdinalIgnoreCase) &&
-            booking.StartTime >= existing.StartTime &&
-            booking.StartTime < existing.EndTime);
+            booking.StartTime < existing.EndTime &&
+            booking.EndTime > existing.StartTime);
 
         if (hasOverlap)
         {
